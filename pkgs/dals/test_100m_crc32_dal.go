@@ -35,16 +35,26 @@ func (dal *Test100mCrc32DAL) GetByCrc32AndUUID(crc32 uint32, uuid string) (*mode
 	return &record, nil
 }
 
-// Update 更新记录，自动更新 uuid_crc32
+// Update 更新记录，自动更新 uuid_crc32（使用联合主键定位）
 func (dal *Test100mCrc32DAL) Update(record *models.Test100mCrc32Table) error {
 	// 如果 UUID 发生变化，重新计算 CRC32
 	record.UuidCrc32 = crc32.ChecksumIEEE([]byte(record.Uuid))
-	return dal.db.Save(record).Error
+	// 使用联合主键 (uuid_crc32, uuid) 定位记录并更新
+	return dal.db.Model(&models.Test100mCrc32Table{}).
+		Where("uuid_crc32 = ? AND uuid = ?", record.UuidCrc32, record.Uuid).
+		Updates(map[string]interface{}{
+			"name":     record.Name,
+			"email":    record.Email,
+			"nickname": record.Nickname,
+		}).Error
 }
 
-// Delete 删除记录（使用联合主键删除）
+// Delete 删除记录（使用联合主键 (uuid_crc32, uuid) 定位）
 func (dal *Test100mCrc32DAL) Delete(uuid string) error {
 	// 计算 CRC32 后使用联合主键删除
 	crc32Value := crc32.ChecksumIEEE([]byte(uuid))
-	return dal.db.Where("uuid_crc32 = ? AND uuid = ?", crc32Value, uuid).Delete(&models.Test100mCrc32Table{}).Error
+	// 明确使用联合主键索引进行删除
+	return dal.db.Model(&models.Test100mCrc32Table{}).
+		Where("uuid_crc32 = ? AND uuid = ?", crc32Value, uuid).
+		Delete(&models.Test100mCrc32Table{}).Error
 }
