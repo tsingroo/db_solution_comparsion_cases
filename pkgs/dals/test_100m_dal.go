@@ -2,6 +2,7 @@ package dals
 
 import (
 	"db_optimization_techs/pkgs/models"
+
 	"gorm.io/gorm"
 )
 
@@ -38,14 +39,4 @@ func (dal *Test100mDAL) Update(record *models.Test100mTable) error {
 // Delete 根据 UUID 删除记录
 func (dal *Test100mDAL) Delete(uuid string) error {
 	return dal.db.Where("uuid = ?", uuid).Delete(&models.Test100mTable{}).Error
-}
-
-// List 分页查询记录列表
-func (dal *Test100mDAL) List(limit, offset int) ([]*models.Test100mTable, error) {
-	var records []*models.Test100mTable
-	err := dal.db.Limit(limit).Offset(offset).Find(&records).Error
-	if err != nil {
-		return nil, err
-	}
-	return records, nil
 }
