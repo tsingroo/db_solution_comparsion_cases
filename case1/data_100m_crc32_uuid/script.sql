@@ -12,7 +12,8 @@ CREATE TABLE IF NOT EXISTS test_100m_crc32_table (
     uuid VARCHAR(36),
     name VARCHAR(50),
     email VARCHAR(50),
-    nickname VARCHAR(50)
+    nickname VARCHAR(50),
+    PRIMARY KEY (uuid_crc32, uuid)  -- 联合主键
 ) ENGINE=InnoDB
   DEFAULT CHARSET=utf8mb4
   COLLATE=utf8mb4_unicode_ci;

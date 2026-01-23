@@ -8,7 +8,7 @@ USE test_100m_db;
 
 -- 创建表 test_100m_table
 CREATE TABLE IF NOT EXISTS test_100m_table (
-    uuid VARCHAR(36),
+    uuid VARCHAR(36) PRIMARY KEY,
     name VARCHAR(50),
     email VARCHAR(50),
     nickname VARCHAR(50)
