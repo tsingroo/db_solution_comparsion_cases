@@ -1,7 +1,6 @@
 package main
 
 import (
-	"encoding/json"
 	"log"
 	"os"
 	"path/filepath"
@@ -17,28 +16,10 @@ func main() {
 	// 获取当前目录
 	confPath := "."
 
-	// 检查配置文件是否存在，不存在则创建
+	// 检查配置文件是否存在
 	configFile := filepath.Join(confPath, "config.json")
 	if _, err := os.Stat(configFile); os.IsNotExist(err) {
-		// 创建默认配置
-		defaultConfig := models.Config{
-			Database: models.DatabaseConfig{
-				Type:     "mysql",
-				Host:     "localhost",
-				Port:     3306,
-				User:     "root",
-				Password: "",
-				Database: "test_100m_db",
-			},
-		}
-		configData, err := json.MarshalIndent(defaultConfig, "", "  ")
-		if err != nil {
-			log.Fatalf("创建默认配置失败: %v", err)
-		}
-		if err := os.WriteFile(configFile, configData, 0644); err != nil {
-			log.Fatalf("写入配置文件失败: %v", err)
-		}
-		log.Println("已创建默认配置文件:", configFile)
+		log.Fatalf("配置文件不存在: %s，请先创建配置文件", configFile)
 	}
 
 	// 使用 viper 读取配置
