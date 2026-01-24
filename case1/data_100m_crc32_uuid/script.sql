@@ -4,7 +4,7 @@ CREATE DATABASE IF NOT EXISTS test_100m_crc32_db
     COLLATE utf8mb4_unicode_ci;
 
 -- 使用数据库
-USE test_100m_db;
+USE test_100m_crc32_db;
 
 -- 创建表 test_100m_table
 CREATE TABLE IF NOT EXISTS test_100m_crc32_table (
