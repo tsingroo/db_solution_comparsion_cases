@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"hash/crc32"
 	"math/rand"
+	"sync"
 	"time"
 
 	"db_optimization_techs/pkgs/dals"
@@ -25,22 +26,43 @@ func NewTest100mCrc32Service(dal *dals.Test100mCrc32DAL) *Test100mCrc32Service {
 // CRC32 值会在 DAL 层自动计算
 func (s *Test100mCrc32Service) Create() (int64, error) {
 	start := time.Now()
-	
+
+	const maxConcurrency = 80
+	sem := make(chan struct{}, maxConcurrency)
+	var wg sync.WaitGroup
+	var mu sync.Mutex
+	var errors []error
+
 	for i := 0; i < 10000; i++ {
-		// 使用标准 UUID v4 生成唯一标识
-		id := uuid.New().String()
-		record := &models.Test100mCrc32Table{
-			Uuid:     id,
-			Name:     fmt.Sprintf("Name_%d", i),
-			Email:    fmt.Sprintf("email_%d@test.com", i),
-			Nickname: fmt.Sprintf("Nickname_%d", i),
-		}
-		
-		if err := s.dal.Create(record); err != nil {
-			return 0, fmt.Errorf("第 %d 次创建失败: %w", i+1, err)
-		}
+		wg.Add(1)
+		sem <- struct{}{}
+
+		go func(index int) {
+			defer wg.Done()
+			defer func() { <-sem }()
+
+			id := uuid.New().String()
+			record := &models.Test100mCrc32Table{
+				Uuid:     id,
+				Name:     fmt.Sprintf("Name_%d", index),
+				Email:    fmt.Sprintf("email_%d@test.com", index),
+				Nickname: fmt.Sprintf("Nickname_%d", index),
+			}
+
+			if err := s.dal.Create(record); err != nil {
+				mu.Lock()
+				errors = append(errors, err)
+				mu.Unlock()
+			}
+		}(i)
 	}
-	
+
+	wg.Wait()
+
+	if len(errors) > 0 {
+		return 0, fmt.Errorf("创建完成，但有 %d 个失败: %v", len(errors), errors[0])
+	}
+
 	elapsed := time.Since(start)
 	return elapsed.Milliseconds(), nil
 }
@@ -72,12 +94,34 @@ func (s *Test100mCrc32Service) Get() (int64, error) {
 	// 测试阶段：随机查询 10000 次（计时）
 	start := time.Now()
 
-	for i, uuid := range uuids {
-		crc32Value := crc32.ChecksumIEEE([]byte(uuid))
-		_, err := s.dal.GetByCrc32AndUUID(crc32Value, uuid)
-		if err != nil {
-			return 0, fmt.Errorf("第 %d 次查询失败: %w", i+1, err)
-		}
+	const maxConcurrency = 80
+	sem := make(chan struct{}, maxConcurrency)
+	var wg sync.WaitGroup
+	var mu sync.Mutex
+	var errors []error
+
+	for _, uuid := range uuids {
+		wg.Add(1)
+		sem <- struct{}{}
+
+		go func(u string) {
+			defer wg.Done()
+			defer func() { <-sem }()
+
+			crc32Value := crc32.ChecksumIEEE([]byte(u))
+			_, err := s.dal.GetByCrc32AndUUID(crc32Value, u)
+			if err != nil {
+				mu.Lock()
+				errors = append(errors, err)
+				mu.Unlock()
+			}
+		}(uuid)
+	}
+
+	wg.Wait()
+
+	if len(errors) > 0 {
+		return 0, fmt.Errorf("查询完成，但有 %d 个失败: %v", len(errors), errors[0])
 	}
 
 	elapsed := time.Since(start)
@@ -106,17 +150,39 @@ func (s *Test100mCrc32Service) Update() (int64, error) {
 	// 测试阶段：循环更新 10000 次（计时）
 	start := time.Now()
 
-	for i, uuid := range uuids {
-		updateRecord := &models.Test100mCrc32Table{
-			Uuid:     uuid,
-			Name:     fmt.Sprintf("UpdatedName_%d", i),
-			Email:    fmt.Sprintf("updated_%d@test.com", i),
-			Nickname: fmt.Sprintf("UpdatedNickname_%d", i),
-		}
+	const maxConcurrency = 80
+	sem := make(chan struct{}, maxConcurrency)
+	var wg sync.WaitGroup
+	var mu sync.Mutex
+	var errors []error
 
-		if err := s.dal.Update(updateRecord); err != nil {
-			return 0, fmt.Errorf("第 %d 次更新失败: %w", i+1, err)
-		}
+	for i, uuid := range uuids {
+		wg.Add(1)
+		sem <- struct{}{}
+
+		go func(index int, u string) {
+			defer wg.Done()
+			defer func() { <-sem }()
+
+			updateRecord := &models.Test100mCrc32Table{
+				Uuid:     u,
+				Name:     fmt.Sprintf("UpdatedName_%d", index),
+				Email:    fmt.Sprintf("updated_%d@test.com", index),
+				Nickname: fmt.Sprintf("UpdatedNickname_%d", index),
+			}
+
+			if err := s.dal.Update(updateRecord); err != nil {
+				mu.Lock()
+				errors = append(errors, err)
+				mu.Unlock()
+			}
+		}(i, uuid)
+	}
+
+	wg.Wait()
+
+	if len(errors) > 0 {
+		return 0, fmt.Errorf("更新完成，但有 %d 个失败: %v", len(errors), errors[0])
 	}
 
 	elapsed := time.Since(start)
@@ -137,22 +203,45 @@ func (s *Test100mCrc32Service) Delete() (int64, error) {
 			Email:    fmt.Sprintf("delete_%d@test.com", i),
 			Nickname: fmt.Sprintf("DeleteNickname_%d", i),
 		}
-		
+
 		// 创建记录（不计时）
 		if err := s.dal.Create(record); err != nil {
 			return 0, fmt.Errorf("第 %d 次创建记录失败: %w", i+1, err)
 		}
 		uuids = append(uuids, id)
 	}
-	
+
 	// 删除阶段：删除所有记录（只统计这部分时间）
 	start := time.Now()
-	for i, uuid := range uuids {
-		if err := s.dal.Delete(uuid); err != nil {
-			return 0, fmt.Errorf("第 %d 次删除失败: %w", i+1, err)
-		}
+
+	const maxConcurrency = 80
+	sem := make(chan struct{}, maxConcurrency)
+	var wg sync.WaitGroup
+	var mu sync.Mutex
+	var errors []error
+
+	for _, uuid := range uuids {
+		wg.Add(1)
+		sem <- struct{}{}
+
+		go func(u string) {
+			defer wg.Done()
+			defer func() { <-sem }()
+
+			if err := s.dal.Delete(u); err != nil {
+				mu.Lock()
+				errors = append(errors, err)
+				mu.Unlock()
+			}
+		}(uuid)
 	}
+
+	wg.Wait()
+
+	if len(errors) > 0 {
+		return 0, fmt.Errorf("删除完成，但有 %d 个失败: %v", len(errors), errors[0])
+	}
+
 	elapsed := time.Since(start)
-	
 	return elapsed.Milliseconds(), nil
 }

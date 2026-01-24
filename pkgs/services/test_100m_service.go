@@ -3,6 +3,7 @@ package services
 import (
 	"fmt"
 	"math/rand"
+	"sync"
 	"time"
 
 	"db_optimization_techs/pkgs/dals"
@@ -24,19 +25,40 @@ func NewTest100mService(dal *dals.Test100mDAL) *Test100mService {
 func (s *Test100mService) Create() (int64, error) {
 	start := time.Now()
 
-	for i := 0; i < 10000; i++ {
-		// 使用标准 UUID v4 生成唯一标识
-		id := uuid.New().String()
-		record := &models.Test100mTable{
-			Uuid:     id,
-			Name:     fmt.Sprintf("Name_%d", i),
-			Email:    fmt.Sprintf("email_%d@test.com", i),
-			Nickname: fmt.Sprintf("Nickname_%d", i),
-		}
+	const maxConcurrency = 80
+	sem := make(chan struct{}, maxConcurrency)
+	var wg sync.WaitGroup
+	var mu sync.Mutex
+	var errors []error
 
-		if err := s.dal.Create(record); err != nil {
-			return 0, fmt.Errorf("第 %d 次创建失败: %w", i+1, err)
-		}
+	for i := 0; i < 10000; i++ {
+		wg.Add(1)
+		sem <- struct{}{}
+
+		go func(index int) {
+			defer wg.Done()
+			defer func() { <-sem }()
+
+			id := uuid.New().String()
+			record := &models.Test100mTable{
+				Uuid:     id,
+				Name:     fmt.Sprintf("Name_%d", index),
+				Email:    fmt.Sprintf("email_%d@test.com", index),
+				Nickname: fmt.Sprintf("Nickname_%d", index),
+			}
+
+			if err := s.dal.Create(record); err != nil {
+				mu.Lock()
+				errors = append(errors, err)
+				mu.Unlock()
+			}
+		}(i)
+	}
+
+	wg.Wait()
+
+	if len(errors) > 0 {
+		return 0, fmt.Errorf("创建完成，但有 %d 个失败: %v", len(errors), errors[0])
 	}
 
 	elapsed := time.Since(start)
@@ -70,11 +92,33 @@ func (s *Test100mService) Get() (int64, error) {
 	// 测试阶段：随机查询 10000 次（计时）
 	start := time.Now()
 
-	for i, uuid := range uuids {
-		_, err := s.dal.GetByUUID(uuid)
-		if err != nil {
-			return 0, fmt.Errorf("第 %d 次查询失败: %w", i+1, err)
-		}
+	const maxConcurrency = 80
+	sem := make(chan struct{}, maxConcurrency)
+	var wg sync.WaitGroup
+	var mu sync.Mutex
+	var errors []error
+
+	for _, uuid := range uuids {
+		wg.Add(1)
+		sem <- struct{}{}
+
+		go func(u string) {
+			defer wg.Done()
+			defer func() { <-sem }()
+
+			_, err := s.dal.GetByUUID(u)
+			if err != nil {
+				mu.Lock()
+				errors = append(errors, err)
+				mu.Unlock()
+			}
+		}(uuid)
+	}
+
+	wg.Wait()
+
+	if len(errors) > 0 {
+		return 0, fmt.Errorf("查询完成，但有 %d 个失败: %v", len(errors), errors[0])
 	}
 
 	elapsed := time.Since(start)
@@ -103,17 +147,39 @@ func (s *Test100mService) Update() (int64, error) {
 	// 测试阶段：循环更新 10000 次（计时）
 	start := time.Now()
 
-	for i, uuid := range uuids {
-		updateRecord := &models.Test100mTable{
-			Uuid:     uuid,
-			Name:     fmt.Sprintf("UpdatedName_%d", i),
-			Email:    fmt.Sprintf("updated_%d@test.com", i),
-			Nickname: fmt.Sprintf("UpdatedNickname_%d", i),
-		}
+	const maxConcurrency = 80
+	sem := make(chan struct{}, maxConcurrency)
+	var wg sync.WaitGroup
+	var mu sync.Mutex
+	var errors []error
 
-		if err := s.dal.Update(updateRecord); err != nil {
-			return 0, fmt.Errorf("第 %d 次更新失败: %w", i+1, err)
-		}
+	for i, uuid := range uuids {
+		wg.Add(1)
+		sem <- struct{}{}
+
+		go func(index int, u string) {
+			defer wg.Done()
+			defer func() { <-sem }()
+
+			updateRecord := &models.Test100mTable{
+				Uuid:     u,
+				Name:     fmt.Sprintf("UpdatedName_%d", index),
+				Email:    fmt.Sprintf("updated_%d@test.com", index),
+				Nickname: fmt.Sprintf("UpdatedNickname_%d", index),
+			}
+
+			if err := s.dal.Update(updateRecord); err != nil {
+				mu.Lock()
+				errors = append(errors, err)
+				mu.Unlock()
+			}
+		}(i, uuid)
+	}
+
+	wg.Wait()
+
+	if len(errors) > 0 {
+		return 0, fmt.Errorf("更新完成，但有 %d 个失败: %v", len(errors), errors[0])
 	}
 
 	elapsed := time.Since(start)
@@ -144,12 +210,35 @@ func (s *Test100mService) Delete() (int64, error) {
 
 	// 删除阶段：删除所有记录（只统计这部分时间）
 	start := time.Now()
-	for i, uuid := range uuids {
-		if err := s.dal.Delete(uuid); err != nil {
-			return 0, fmt.Errorf("第 %d 次删除失败: %w", i+1, err)
-		}
-	}
-	elapsed := time.Since(start)
 
+	const maxConcurrency = 80
+	sem := make(chan struct{}, maxConcurrency)
+	var wg sync.WaitGroup
+	var mu sync.Mutex
+	var errors []error
+
+	for _, uuid := range uuids {
+		wg.Add(1)
+		sem <- struct{}{}
+
+		go func(u string) {
+			defer wg.Done()
+			defer func() { <-sem }()
+
+			if err := s.dal.Delete(u); err != nil {
+				mu.Lock()
+				errors = append(errors, err)
+				mu.Unlock()
+			}
+		}(uuid)
+	}
+
+	wg.Wait()
+
+	if len(errors) > 0 {
+		return 0, fmt.Errorf("删除完成，但有 %d 个失败: %v", len(errors), errors[0])
+	}
+
+	elapsed := time.Since(start)
 	return elapsed.Milliseconds(), nil
 }
