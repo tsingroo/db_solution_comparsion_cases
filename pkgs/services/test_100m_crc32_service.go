@@ -72,9 +72,9 @@ func (s *Test100mCrc32Service) Get() (int64, error) {
 	// 测试阶段：随机查询 10000 次（计时）
 	start := time.Now()
 
-	for i := 0; i < 10000; i++ {
-		crc32Value := crc32.ChecksumIEEE([]byte(uuids[i]))
-		_, err := s.dal.GetByCrc32AndUUID(crc32Value, uuids[i])
+	for i, uuid := range uuids {
+		crc32Value := crc32.ChecksumIEEE([]byte(uuid))
+		_, err := s.dal.GetByCrc32AndUUID(crc32Value, uuid)
 		if err != nil {
 			return 0, fmt.Errorf("第 %d 次查询失败: %w", i+1, err)
 		}
@@ -106,9 +106,9 @@ func (s *Test100mCrc32Service) Update() (int64, error) {
 	// 测试阶段：循环更新 10000 次（计时）
 	start := time.Now()
 
-	for i := 0; i < 10000; i++ {
+	for i, uuid := range uuids {
 		updateRecord := &models.Test100mCrc32Table{
-			Uuid:     uuids[i],
+			Uuid:     uuid,
 			Name:     fmt.Sprintf("UpdatedName_%d", i),
 			Email:    fmt.Sprintf("updated_%d@test.com", i),
 			Nickname: fmt.Sprintf("UpdatedNickname_%d", i),

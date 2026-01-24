@@ -70,8 +70,8 @@ func (s *Test100mService) Get() (int64, error) {
 	// 测试阶段：随机查询 10000 次（计时）
 	start := time.Now()
 
-	for i := 0; i < 10000; i++ {
-		_, err := s.dal.GetByUUID(uuids[i])
+	for i, uuid := range uuids {
+		_, err := s.dal.GetByUUID(uuid)
 		if err != nil {
 			return 0, fmt.Errorf("第 %d 次查询失败: %w", i+1, err)
 		}
@@ -103,9 +103,9 @@ func (s *Test100mService) Update() (int64, error) {
 	// 测试阶段：循环更新 10000 次（计时）
 	start := time.Now()
 
-	for i := 0; i < 10000; i++ {
+	for i, uuid := range uuids {
 		updateRecord := &models.Test100mTable{
-			Uuid:     uuids[i],
+			Uuid:     uuid,
 			Name:     fmt.Sprintf("UpdatedName_%d", i),
 			Email:    fmt.Sprintf("updated_%d@test.com", i),
 			Nickname: fmt.Sprintf("UpdatedNickname_%d", i),
