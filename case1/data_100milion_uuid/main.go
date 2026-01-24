@@ -7,6 +7,7 @@ import (
 
 	"db_optimization_techs/pkgs/dals"
 	"db_optimization_techs/pkgs/models"
+	"db_optimization_techs/pkgs/services"
 	"db_optimization_techs/pkgs/utils"
 
 	"github.com/spf13/viper"
@@ -40,6 +41,36 @@ func main() {
 	}
 	log.Println("数据库连接成功")
 
-	// 这里可以继续使用 db 进行数据库操作
-	_ = db
+	// 创建 DAL 实例
+	dal := dals.NewTest100mDAL(db)
+	// 创建 Service 实例
+	service := services.NewTest100mService(dal)
+
+	log.Println("开始性能测试...")
+
+	createElapsed, err := service.Create()
+	if err != nil {
+		log.Fatalf("Create 失败: %v", err)
+	}
+	log.Printf("Create 完成，耗时: %d ms", createElapsed)
+
+	getElapsed, err := service.Get()
+	if err != nil {
+		log.Fatalf("Get 失败: %v", err)
+	}
+	log.Printf("Get 完成，耗时: %d ms", getElapsed)
+
+	updateElapsed, err := service.Update()
+	if err != nil {
+		log.Fatalf("Update 失败: %v", err)
+	}
+	log.Printf("Update 完成，耗时: %d ms", updateElapsed)
+
+	deleteElapsed, err := service.Delete()
+	if err != nil {
+		log.Fatalf("Delete 失败: %v", err)
+	}
+	log.Printf("Delete 完成，耗时: %d ms", deleteElapsed)
+
+	log.Println("性能测试完成")
 }
