@@ -21,6 +21,11 @@ func (dal *Test100mDAL) Create(record *models.Test100mTable) error {
 	return dal.db.Create(record).Error
 }
 
+// InsertBatch100 批量插入多条记录（典型用法为 100 条），由调用方保证 records 长度与内容；DAL 内不强制校验 len(records)==100
+func (dal *Test100mDAL) InsertBatch100(records []*models.Test100mTable) error {
+	return dal.db.Create(records).Error
+}
+
 // GetByUUID 根据 UUID 主键查询记录
 func (dal *Test100mDAL) GetByUUID(uuid string) (*models.Test100mTable, error) {
 	var record models.Test100mTable

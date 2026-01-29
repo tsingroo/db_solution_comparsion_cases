@@ -8,6 +8,7 @@ import (
 
 	"db_optimization_techs/pkgs/dals"
 	"db_optimization_techs/pkgs/models"
+
 	"github.com/google/uuid"
 )
 
@@ -19,6 +20,29 @@ type Test100mService struct {
 // NewTest100mService 创建 Test100mService 实例
 func NewTest100mService(dal *dals.Test100mDAL) *Test100mService {
 	return &Test100mService{dal: dal}
+}
+
+// InsertBatch10000 批量插入 10000 条：循环 100 次，每次在 Service 内生成 100 条并调用 DAL.InsertBatch100，返回总耗时（毫秒）
+func (s *Test100mService) InsertBatch10000() (int64, error) {
+	start := time.Now()
+	const batchSize = 100
+	const loopCount = 100
+	for batch := 0; batch < loopCount; batch++ {
+		records := make([]*models.Test100mTable, 0, batchSize)
+		for i := 0; i < batchSize; i++ {
+			globalIdx := batch*batchSize + i
+			records = append(records, &models.Test100mTable{
+				Uuid:     uuid.New().String(),
+				Name:     fmt.Sprintf("Name_%d", globalIdx),
+				Email:    fmt.Sprintf("email_%d@test.com", globalIdx),
+				Nickname: fmt.Sprintf("Nickname_%d", globalIdx),
+			})
+		}
+		if err := s.dal.InsertBatch100(records); err != nil {
+			return time.Since(start).Milliseconds(), err
+		}
+	}
+	return time.Since(start).Milliseconds(), nil
 }
 
 // Create 循环 1 万次创建记录，返回总耗时（毫秒）
