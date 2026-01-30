@@ -2,12 +2,15 @@ package dals
 
 import (
 	"fmt"
+	"log"
+	"os"
 	"time"
 
 	"db_optimization_techs/pkgs/models"
 
 	"gorm.io/driver/mysql"
 	"gorm.io/gorm"
+	"gorm.io/gorm/logger"
 )
 
 // InitDB 初始化数据库连接
@@ -22,8 +25,17 @@ func InitDB(cfg *models.DatabaseConfig) (*gorm.DB, error) {
 		cfg.Database,
 	)
 
+	newLogger := logger.New(
+		log.New(os.Stdout, "\r\n", log.LstdFlags),
+		logger.Config{
+			SlowThreshold: 2 * time.Second,
+			LogLevel:      logger.Warn,
+			Colorful:      true,
+		},
+	)
+
 	// 打开数据库连接
-	db, err := gorm.Open(mysql.Open(dsn), &gorm.Config{})
+	db, err := gorm.Open(mysql.Open(dsn), &gorm.Config{Logger: newLogger})
 	if err != nil {
 		return nil, fmt.Errorf("连接数据库失败: %w", err)
 	}

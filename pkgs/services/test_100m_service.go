@@ -8,6 +8,7 @@ import (
 
 	"db_optimization_techs/pkgs/dals"
 	"db_optimization_techs/pkgs/models"
+
 	"github.com/google/uuid"
 )
 
@@ -19,6 +20,48 @@ type Test100mService struct {
 // NewTest100mService 创建 Test100mService 实例
 func NewTest100mService(dal *dals.Test100mDAL) *Test100mService {
 	return &Test100mService{dal: dal}
+}
+
+// InsertBatch10000 批量插入 10000 条：并行 100 批，每批在 Service 内生成 100 条并调用 DAL.InsertBatch100，返回总耗时（毫秒）
+func (s *Test100mService) InsertBatch10000() (int64, error) {
+	start := time.Now()
+	const batchSize = 100
+	const loopCount = 100
+	const maxConcurrency = 30 // 有界并发，避免打满 DB 连接池
+	sem := make(chan struct{}, maxConcurrency)
+	var wg sync.WaitGroup
+	var mu sync.Mutex
+	var firstErr error
+	for batch := 0; batch < loopCount; batch++ {
+		wg.Add(1)
+		sem <- struct{}{}
+		go func(batch int) {
+			defer wg.Done()
+			defer func() { <-sem }()
+			records := make([]*models.Test100mTable, 0, batchSize)
+			for i := 0; i < batchSize; i++ {
+				globalIdx := batch*batchSize + i
+				records = append(records, &models.Test100mTable{
+					Uuid:     uuid.New().String(),
+					Name:     fmt.Sprintf("Name_%d", globalIdx),
+					Email:    fmt.Sprintf("email_%d@test.com", globalIdx),
+					Nickname: fmt.Sprintf("Nickname_%d", globalIdx),
+				})
+			}
+			if err := s.dal.InsertBatch100(records); err != nil {
+				mu.Lock()
+				if firstErr == nil {
+					firstErr = err
+				}
+				mu.Unlock()
+			}
+		}(batch)
+	}
+	wg.Wait()
+	if firstErr != nil {
+		return time.Since(start).Milliseconds(), firstErr
+	}
+	return time.Since(start).Milliseconds(), nil
 }
 
 // Create 循环 1 万次创建记录，返回总耗时（毫秒）
