@@ -3,6 +3,8 @@ module db_optimization_techs
 go 1.25.5
 
 require (
+	github.com/google/uuid v1.6.0
+	github.com/sony/sonyflake/v2 v2.2.0
 	github.com/spf13/viper v1.21.0
 	gorm.io/driver/mysql v1.5.7
 	gorm.io/gorm v1.31.1
@@ -12,7 +14,6 @@ require (
 	github.com/fsnotify/fsnotify v1.9.0 // indirect
 	github.com/go-sql-driver/mysql v1.7.0 // indirect
 	github.com/go-viper/mapstructure/v2 v2.4.0 // indirect
-	github.com/google/uuid v1.6.0 // indirect
 	github.com/jinzhu/inflection v1.0.0 // indirect
 	github.com/jinzhu/now v1.1.5 // indirect
 	github.com/pelletier/go-toml/v2 v2.2.4 // indirect
