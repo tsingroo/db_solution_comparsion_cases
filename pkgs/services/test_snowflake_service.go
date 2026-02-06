@@ -62,6 +62,48 @@ func (s *TestSnowflakeService) Create() (int64, error) {
 	return elapsed.Milliseconds(), nil
 }
 
+// InsertBatch10000 批量插入 10000 条：并行 100 批，每批在 Service 内生成 100 条并调用 DAL.InsertBatch100，返回总耗时（毫秒）
+func (s *TestSnowflakeService) InsertBatch10000() (int64, error) {
+	start := time.Now()
+	const batchSize = 100
+	const loopCount = 100
+	const maxConcurrency = 30 // 有界并发，避免打满 DB 连接池
+	sem := make(chan struct{}, maxConcurrency)
+	var wg sync.WaitGroup
+	var mu sync.Mutex
+	var firstErr error
+	for batch := 0; batch < loopCount; batch++ {
+		wg.Add(1)
+		sem <- struct{}{}
+		go func(batch int) {
+			defer wg.Done()
+			defer func() { <-sem }()
+			records := make([]*models.TestSnowflakeTable, 0, batchSize)
+			for i := 0; i < batchSize; i++ {
+				globalIdx := batch*batchSize + i
+				records = append(records, &models.TestSnowflakeTable{
+					// ID 留空（ID=0），由 DAL.InsertBatch100 自动生成
+					Name:     fmt.Sprintf("Name_%d", globalIdx),
+					Email:    fmt.Sprintf("email_%d@test.com", globalIdx),
+					Nickname: fmt.Sprintf("Nickname_%d", globalIdx),
+				})
+			}
+			if err := s.dal.InsertBatch100(records); err != nil {
+				mu.Lock()
+				if firstErr == nil {
+					firstErr = err
+				}
+				mu.Unlock()
+			}
+		}(batch)
+	}
+	wg.Wait()
+	if firstErr != nil {
+		return time.Since(start).Milliseconds(), firstErr
+	}
+	return time.Since(start).Milliseconds(), nil
+}
+
 // Get 先创建 1 万条测试数据并收集 ID，再随机按 ID 查询 1 万次，返回总耗时（毫秒）
 func (s *TestSnowflakeService) Get() (int64, error) {
 	// 准备阶段：创建 10000 条记录（不计时），每次 Create 后从 record.ID 收集 ID

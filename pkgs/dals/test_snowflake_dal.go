@@ -59,3 +59,21 @@ func (dal *TestSnowflakeDAL) Update(record *models.TestSnowflakeTable) error {
 func (dal *TestSnowflakeDAL) Delete(id int64) error {
 	return dal.db.Where("id = ?", id).Delete(&models.TestSnowflakeTable{}).Error
 }
+
+// InsertBatch100 批量插入多条记录（典型用法为 100 条），由调用方保证 records 长度与内容；DAL 内不强制校验 len(records)==100
+// 使用 CreateInBatches 确保每批 100 行对应一条 INSERT，实现真正的批量插入
+// 若记录的 ID 为 0，则自动用 Sonyflake 生成 ID（保持与 Create 方法一致的行为）
+func (dal *TestSnowflakeDAL) InsertBatch100(records []*models.TestSnowflakeTable) error {
+	// 为所有 ID == 0 的记录生成 Snowflake ID
+	for _, record := range records {
+		if record.ID == 0 {
+			id, err := dal.sf.NextID()
+			if err != nil {
+				return err
+			}
+			record.ID = id
+		}
+	}
+	// 批量插入
+	return dal.db.CreateInBatches(records, 100).Error
+}
