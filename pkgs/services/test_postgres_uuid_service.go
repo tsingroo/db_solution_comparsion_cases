@@ -26,7 +26,7 @@ func NewTestPostgresUuidService(dal *dals.TestPostgresUuidDAL) *TestPostgresUuid
 func (s *TestPostgresUuidService) Create() (int64, error) {
 	start := time.Now()
 
-	const maxConcurrency = 80
+	const maxConcurrency = 60
 	sem := make(chan struct{}, maxConcurrency)
 	var wg sync.WaitGroup
 	var mu sync.Mutex
